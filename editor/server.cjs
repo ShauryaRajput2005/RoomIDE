@@ -1,0 +1,75 @@
+const express = require('express');
+const app = express();
+const http = require('http');
+const path = require('path');
+const { Server } = require('socket.io');
+const ACTIONS = require('./Actions.cjs');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*' }
+});
+
+app.use(express.static('build'));
+app.use((req, res, next) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
+
+
+const userSocketMap = {};
+
+function getAllConnectedClients(roomId) {
+  return Array.from(io.sockets.adapter.rooms.get(roomId) || []).map(socketId => ({
+    socketId,
+    name: userSocketMap[socketId]
+  }));
+}
+
+io.on('connection', (socket) => {
+  console.log('Socket connected:', socket.id);
+
+  socket.on(ACTIONS.JOIN, ({ roomId, name }) => {
+
+    userSocketMap[socket.id] = name;
+    socket.join(roomId);
+
+    const clients = getAllConnectedClients(roomId);
+    console.log(clients);
+
+    io.in(roomId).emit(ACTIONS.JOINED, {
+      clients,
+      name,
+      socketId: socket.id
+    });
+    console.log('JOIN event handled for:', name, 'in room:', roomId);
+
+  });
+
+  socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
+    socket.in(roomId).emit(ACTIONS.CODE_CHANGE, { code });
+  });
+
+  socket.on(ACTIONS.SYNC_CODE, ({ socketId, code }) => {
+    io.to(socketId).emit(ACTIONS.CODE_CHANGE, { code });
+  });
+
+  socket.on('disconnecting', () => {
+    const rooms = [...socket.rooms];
+    rooms.forEach((roomId) => {
+      socket.to(roomId).emit(ACTIONS.DISCONNECTED, {
+        socketId: socket.id,
+        name: userSocketMap[socket.id],
+      });
+    });
+    delete userSocketMap[socket.id];
+  });
+
+  socket.on(ACTIONS.SYNC_CODE, ({ socketId, code }) => {
+    io.to(socketId).emit(ACTIONS.SYNC_CODE, { code });
+  });
+
+});
+
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Listening on port ${PORT}`));
