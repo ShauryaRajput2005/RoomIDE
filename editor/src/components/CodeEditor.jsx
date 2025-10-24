@@ -39,6 +39,7 @@ function CodeEditor({ socketRef, roomId, onCodeChange }) {
       socketRef.current.off(ACTIONS.CODE_CHANGE);
       socketRef.current.off(ACTIONS.SYNC_CODE);
     };
+    
   }, [socketRef.current]);
 
 
