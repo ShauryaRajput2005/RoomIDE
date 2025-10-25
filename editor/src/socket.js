@@ -8,7 +8,12 @@ export const initSocket = () => {
     transports: ['websocket', 'polling'],
   };
 
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const socket = io(backendUrl, options);
 
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://your-backend.onrender.com';
-  return io(backendUrl, options);
+  socket.on("connect_error", (err) => {
+    console.error("Socket connection failed:", err.message);
+  });
+
+  return socket;
 };
